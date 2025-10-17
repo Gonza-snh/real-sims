@@ -11,6 +11,7 @@ interface SelectionBoxProps {
   onScaleStart?: () => void
   onScaleEnd?: () => void
   objectId: string  // ID del objeto para detección de colisiones
+  showHandles?: boolean  // Si mostrar los handles de rotación y escala (default: true)
 }
 
 /**
@@ -26,7 +27,7 @@ interface SelectionBoxProps {
  * - Rotación interactiva en el eje Y con click & drag
  * - El bounding box rota junto con el objeto (porque es hijo del mismo grupo)
  */
-export default function SelectionBox({ selectedObject, onRotationStart, onRotationEnd, onScaleStart, onScaleEnd, objectId }: SelectionBoxProps) {
+export default function SelectionBox({ selectedObject, onRotationStart, onRotationEnd, onScaleStart, onScaleEnd, objectId, showHandles = true }: SelectionBoxProps) {
   const { scene, camera } = useThree()
   const { getOtherObjects, getAllObjects } = useSceneObjects()
   const [boxBounds, setBoxBounds] = useState<THREE.Box3 | null>(null)
@@ -176,7 +177,7 @@ export default function SelectionBox({ selectedObject, onRotationStart, onRotati
       <WireframeBox boxBounds={boxBounds} />
       
       {/* Handles de esquinas (esferas blancas) - Para scaling */}
-      {corners.map((corner, index) => (
+      {showHandles && corners.map((corner, index) => (
         <CornerHandle 
           key={index} 
           position={corner}
@@ -196,7 +197,7 @@ export default function SelectionBox({ selectedObject, onRotationStart, onRotati
       ))}
 
       {/* Handles de rotación (círculos blancos) */}
-      {rotationHandles.map((handle, index) => (
+      {showHandles && rotationHandles.map((handle, index) => (
         <RotationHandle
           key={index}
           visible={index === visibleRotationHandle}

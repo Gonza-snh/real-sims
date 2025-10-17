@@ -118,6 +118,93 @@ export function pushAwayFromCollision(
 }
 
 /**
+ * Coloca un objeto encima de otro (apilamiento)
+ * Calcula basándose SOLO en los meshes, ignorando SelectionBox
+ * 
+ * @param objectToPlace - Objeto A que será colocado encima
+ * @param objectBelow - Objeto B que servirá de base
+ * @returns Nueva posición Y para A (encima de B)
+ */
+export function placeObjectOnTop(
+  objectToPlace: THREE.Object3D,
+  objectBelow: THREE.Object3D
+): number {
+  // Buscar solo meshes, ignorando SelectionBox y otros elementos UI
+  let belowBox = new THREE.Box3()
+  let toPlaceBox = new THREE.Box3()
+  
+  // Calcular bounding box SOLO de los meshes del objeto de abajo
+  // Excluir meshes que son parte del SelectionBox (wireframes, handles, etc.)
+  objectBelow.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.geometry) {
+      // Ignorar meshes con userData.isHandle o que usen LineBasicMaterial/EdgesGeometry
+      const isHandle = child.userData?.isHandle === true
+      const isWireframe = child.geometry instanceof THREE.EdgesGeometry
+      const isSphere = child.geometry instanceof THREE.SphereGeometry && 
+                       (child.geometry as THREE.SphereGeometry).parameters.radius < 0.1 // Handles son pequeños
+      
+      // Solo procesar meshes principales (no UI)
+      if (!isHandle && !isWireframe && !isSphere) {
+        // Actualizar matriz mundial
+        child.updateWorldMatrix(true, false)
+        
+        // Calcular bounding box del mesh en coordenadas mundiales
+        const geometry = child.geometry
+        if (!geometry.boundingBox) {
+          geometry.computeBoundingBox()
+        }
+        
+        if (geometry.boundingBox) {
+          const meshBox = geometry.boundingBox.clone()
+          meshBox.applyMatrix4(child.matrixWorld)
+          belowBox.union(meshBox)
+        }
+      }
+    }
+  })
+  
+  // Calcular bounding box SOLO de los meshes del objeto a colocar
+  objectToPlace.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.geometry) {
+      const isHandle = child.userData?.isHandle === true
+      const isWireframe = child.geometry instanceof THREE.EdgesGeometry
+      const isSphere = child.geometry instanceof THREE.SphereGeometry && 
+                       (child.geometry as THREE.SphereGeometry).parameters.radius < 0.1
+      
+      if (!isHandle && !isWireframe && !isSphere) {
+        child.updateWorldMatrix(true, false)
+        
+        const geometry = child.geometry
+        if (!geometry.boundingBox) {
+          geometry.computeBoundingBox()
+        }
+        
+        if (geometry.boundingBox) {
+          const meshBox = geometry.boundingBox.clone()
+          meshBox.applyMatrix4(child.matrixWorld)
+          toPlaceBox.union(meshBox)
+        }
+      }
+    }
+  })
+  
+  // Calcular la altura del mesh de abajo (sin padding del SelectionBox)
+  const belowTop = belowBox.max.y
+  
+  // Calcular la altura base del mesh a colocar (su punto más bajo)
+  const toPlaceBottom = toPlaceBox.min.y
+  const toPlaceCurrentY = objectToPlace.position.y
+  
+  // Offset entre el punto más bajo del mesh y su posición Y
+  const offset = toPlaceBottom - toPlaceCurrentY
+  
+  // Nueva posición Y: tope del mesh de abajo - offset del mesh a colocar
+  const newY = belowTop - offset
+  
+  return newY
+}
+
+/**
  * Sistema de empuje: Intenta empujar un objeto cuando A colisiona con B
  * 
  * @param pushingObject - Objeto A que está empujando (el que se mueve)
@@ -180,4 +267,53 @@ export function tryPushObject(
   
   // B se empujó exitosamente sin colisionar con nada más
   return true
+}
+
+/**
+ * Detecta si un objeto tiene otro objeto encima de él
+ * 
+ * @param object - Objeto a verificar
+ * @param allObjects - Array de todos los objetos en la escena
+ * @param tolerance - Margen de tolerancia para considerar "encima" (default: 0.1)
+ * @returns true si hay un objeto encima, false si no
+ */
+export function hasObjectOnTop(
+  object: THREE.Object3D,
+  allObjects: THREE.Object3D[],
+  tolerance: number = 0.1
+): boolean {
+  const objectBox = getWorldBoundingBox(object)
+  const objectTopY = objectBox.max.y
+  
+  // Verificar cada otro objeto
+  for (const otherObject of allObjects) {
+    if (otherObject === object) continue
+    
+    const otherBox = getWorldBoundingBox(otherObject)
+    const otherBottomY = otherBox.min.y
+    
+    // Si el otro objeto está encima (su base está cerca o por encima del tope de este objeto)
+    if (otherBottomY >= objectTopY - tolerance) {
+      // Verificar si se solapan en el plano XZ
+      const objectMinX = objectBox.min.x
+      const objectMaxX = objectBox.max.x
+      const objectMinZ = objectBox.min.z
+      const objectMaxZ = objectBox.max.z
+      
+      const otherMinX = otherBox.min.x
+      const otherMaxX = otherBox.max.x
+      const otherMinZ = otherBox.min.z
+      const otherMaxZ = otherBox.max.z
+      
+      // Verificar solapamiento en XZ
+      const overlapX = !(objectMaxX < otherMinX || objectMinX > otherMaxX)
+      const overlapZ = !(objectMaxZ < otherMinZ || objectMinZ > otherMaxZ)
+      
+      if (overlapX && overlapZ) {
+        return true
+      }
+    }
+  }
+  
+  return false
 }

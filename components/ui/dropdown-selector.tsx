@@ -67,7 +67,7 @@ export const DropdownSelector: React.FC<DropdownSelectorProps> = ({
         style={{ 
           fontFamily: 'var(--font-etiqueta)', 
           fontSize: 'var(--font-etiqueta-size)', 
-          color: 'var(--color-gris-medio)',
+          color: 'var(--color-oscuro)',
           padding: 0
         }}
       >
@@ -81,10 +81,14 @@ export const DropdownSelector: React.FC<DropdownSelectorProps> = ({
       {/* Dropdown */}
       {isOpen && (
         <div 
-          className={`absolute bg-white border border-gray-200 shadow-lg z-50 ${dropdownClassName}`}
+          className={`absolute shadow-lg z-50 ${dropdownClassName}`}
           style={{ 
             minWidth,
             borderRadius: '8px',
+            background: 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border: '1px solid rgba(239, 233, 211, 0.7)',
             ...(openDirection === 'up' 
               ? { bottom: '100%', left: 0, marginBottom: '4px' }
               : { top: '100%', left: 0, marginTop: '4px' }
@@ -102,23 +106,31 @@ export const DropdownSelector: React.FC<DropdownSelectorProps> = ({
               className={`w-full px-4 py-2 text-left text-sm transition-colors duration-200 focus:outline-none ${
                 value === option.value 
                   ? 'bg-[var(--color-oscuro)] text-white' 
-                  : 'text-gray-700 hover:bg-[var(--color-amarillo)]'
+                  : 'hover:bg-[var(--color-amarillo)]'
               }`}
               style={{ 
                 fontFamily: 'var(--font-etiqueta)', 
                 fontSize: 'var(--font-etiqueta-size)',
+                color: value === option.value ? 'white' : 'var(--color-oscuro)',
                 borderRadius: value === options[0].value ? '8px 8px 0 0' : value === options[options.length - 1].value ? '0 0 8px 8px' : '0'
               }}
             >
               {option.sublabel ? (
                 <div className="flex justify-between items-center">
-                  <span>{option.label}</span>
-                  <span className={`text-xs ${value === option.value ? 'text-white' : 'text-gray-500'}`}>
+                  <span style={{ color: value === option.value ? 'white' : 'var(--color-oscuro)' }}>
+                    {option.label}
+                  </span>
+                  <span 
+                    className="text-xs"
+                    style={{ color: value === option.value ? 'white' : 'var(--color-oscuro)' }}
+                  >
                     {option.sublabel}
                   </span>
                 </div>
               ) : (
-                option.label
+                <span style={{ color: value === option.value ? 'white' : 'var(--color-oscuro)' }}>
+                  {option.label}
+                </span>
               )}
             </button>
           ))}

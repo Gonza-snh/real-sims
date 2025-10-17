@@ -1,4 +1,5 @@
 import { ContactShadows, Grid } from '@react-three/drei'
+import * as THREE from 'three'
 
 interface SceneEnvironmentProps {
   floorColor: string
@@ -8,7 +9,7 @@ interface SceneEnvironmentProps {
   showGrid: boolean
   contactShadowsOpacity: number
   contactShadowsBlur: number
-  onFloorClick?: () => void
+  onFloorClick?: (point?: THREE.Vector3) => void
 }
 
 /**
@@ -36,7 +37,8 @@ export default function SceneEnvironment({
           console.log('⬛ CLICK EN SUELO')
           e.stopPropagation()
           if (onFloorClick) {
-            onFloorClick()
+            // Pasar el punto 3D del click
+            onFloorClick(e.point)
           }
         }}
       >
@@ -52,7 +54,7 @@ export default function SceneEnvironment({
           onClick={(e) => {
             e.stopPropagation()
             if (onFloorClick) {
-              onFloorClick()
+              onFloorClick(e.point)
             }
           }}
         >
@@ -65,7 +67,7 @@ export default function SceneEnvironment({
           onClick={(e) => {
             e.stopPropagation()
             if (onFloorClick) {
-              onFloorClick()
+              onFloorClick(e.point)
             }
           }}
         >
@@ -78,7 +80,7 @@ export default function SceneEnvironment({
           onClick={(e) => {
             e.stopPropagation()
             if (onFloorClick) {
-              onFloorClick()
+              onFloorClick(e.point)
             }
           }}
         >
@@ -91,7 +93,7 @@ export default function SceneEnvironment({
           onClick={(e) => {
             e.stopPropagation()
             if (onFloorClick) {
-              onFloorClick()
+              onFloorClick(e.point)
             }
           }}
         >

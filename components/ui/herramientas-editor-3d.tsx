@@ -54,15 +54,17 @@ export default function HerramientasEditor3D({
           left: '50%',
           bottom: 20,
           transform: 'translateX(-50%)',
-          background: '#fff',
-                 borderRadius: '50px',
+          background: 'rgba(255, 255, 255, 0.7)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          borderRadius: '50px',
           boxShadow: '0 2px 8px 0 rgba(23,34,59,0.08)',
           zIndex: 9999,
           display: 'flex',
           alignItems: 'center',
           gap: 5,
           padding: '5px',
-          border: '1px solid #EFE9D3',
+          border: '1px solid rgba(239, 233, 211, 0.7)',
         }}>
         
         <ToolbarButton 
@@ -71,6 +73,14 @@ export default function HerramientasEditor3D({
           side="top" 
           selected={activeTool === "seleccionar" || activeTool === ''} 
           onClick={() => handleSelect("seleccionar")}
+        />
+
+        <ToolbarButton 
+          svgIcon={IconoMedidas} 
+          tooltip="Marco de selección" 
+          side="top" 
+          selected={activeTool === "marco-seleccion"} 
+          onClick={() => handleSelect("marco-seleccion")}
         />
 
         <ToolbarButton 

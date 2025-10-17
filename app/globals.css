@@ -15,7 +15,14 @@
   --color-gris-claro: #F7F5EF;
   --color-gris-medio: #6B7280;
   
-  /* Tipografías */
+  /* Tipografías y tamaños */
+  --font-titulo: 'Microsoft Sans Serif', sans-serif;
+  --font-titulo-size: 35px;
+  --font-cuerpo: 'Microsoft Sans Serif', sans-serif;
+  --font-cuerpo-size: 16px;
+  --font-subtitulo: 'Helvetica', sans-serif;
+  --font-subtitulo-size: 20px;
+  --font-etiqueta: 'Microsoft Sans Serif', sans-serif;
   --font-etiqueta-size: 12px;
 }
 

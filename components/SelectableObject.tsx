@@ -2,28 +2,33 @@ import React, { useRef, useState, useCallback } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useSceneObjects, useObjectRegistration } from '@/contexts/SceneObjectsContext'
-import { checkCollisionWithObjects, tryPushObject } from '@/utils/collisionDetection'
+import { checkCollisionWithObjects, placeObjectOnTop, hasObjectOnTop } from '@/utils/collisionDetection'
 
 interface SelectableObjectProps {
   children: React.ReactNode
   objectRef: React.RefObject<THREE.Group>
   selectedObject: THREE.Object3D | null
-  onObjectClick: (object: THREE.Group) => void
+  selectedObjects?: THREE.Object3D[]  // Objetos seleccionados en grupo
+  onObjectClick: (object: THREE.Group, isMultiSelectMode?: boolean) => void
   on3DClick?: () => void
   onObjectDragStart?: () => void
   onObjectDragEnd?: () => void
   objectId: string  // ID único para registro y detección de colisiones
+  interactionsDisabled?: boolean  // Deshabilitar todas las interacciones
+  hasObjectOnTopProp?: boolean  // Indicador externo de que tiene objeto encima
 }
 
 const SelectableObject: React.FC<SelectableObjectProps> = ({
   children,
   objectRef,
   selectedObject,
+  selectedObjects = [],
   onObjectClick,
   on3DClick,
   onObjectDragStart,
   onObjectDragEnd,
-  objectId
+  objectId,
+  interactionsDisabled = false
 }) => {
   const { camera } = useThree()
   const { getOtherObjects, getAllObjects } = useSceneObjects()
@@ -36,7 +41,17 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
 
   // Función para manejar el inicio del drag
   const handleDragStart = useCallback((ref: React.RefObject<THREE.Group>, e: any) => {
-    if (!ref.current || selectedObject !== ref.current) return
+    const isInGroup = selectedObjects.includes(ref.current!)
+    if (!ref.current || (selectedObject !== ref.current && !isInGroup)) return
+    
+    // Solo verificar si tiene algo encima si NO está en selección múltiple
+    if (!isInGroup && selectedObjects.length === 0) {
+      const allObjects = getAllObjects()
+      if (hasObjectOnTop(ref.current, allObjects)) {
+        // No permitir drag si tiene algo encima (solo en selección individual)
+        return
+      }
+    }
     
     setIsDragging(true)
     setDragStartPos(ref.current.position.clone())
@@ -46,7 +61,7 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
     
     // Cambiar cursor a grabbing
     document.body.style.cursor = 'grabbing'
-  }, [selectedObject, onObjectDragStart])
+  }, [selectedObject, selectedObjects, onObjectDragStart, getAllObjects])
 
   // Función para manejar el movimiento durante el drag
   const handleDragMove = useCallback((e: MouseEvent) => {
@@ -57,7 +72,6 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
     const deltaY = (e.clientY - dragStartMouse.y) * sensitivity
 
     // Proyección en el plano XZ basada en la orientación de la cámara
-    // Esto hace que el movimiento sea intuitivo desde cualquier ángulo de cámara
     const forward = new THREE.Vector3()
     camera.getWorldDirection(forward)
     forward.y = 0
@@ -67,48 +81,44 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
     right.crossVectors(forward, new THREE.Vector3(0, 1, 0))
     right.normalize()
     
-    // Proyectar el movimiento del mouse en el plano XZ
-    // - deltaX se mapea al vector "right" (derecha de la cámara)
-    // - deltaY se mapea al vector "forward" (adelante de la cámara) CON INVERSIÓN
     const moveX = deltaX * right.x - deltaY * forward.x
     const moveZ = deltaX * right.z - deltaY * forward.z
     
-    // Calcular nueva posición
-    const newX = dragStartPos.x + moveX
-    const newZ = dragStartPos.z + moveZ
-    
-    // Guardar posición actual para poder revertir si hay colisión
-    const currentPosition = objectRef.current.position.clone()
-    
-    // Aplicar nueva posición temporalmente
-    objectRef.current.position.x = newX
-    objectRef.current.position.z = newZ
-    objectRef.current.position.y = 0
-    objectRef.current.updateWorldMatrix(true, true)
-    
-    // Verificar colisiones en tiempo real
-    const otherObjects = getOtherObjects(objectId)
-    if (otherObjects.length > 0) {
-      const collidingObject = checkCollisionWithObjects(objectRef.current, otherObjects, 0.02)
+    // Si hay múltiples objetos seleccionados, mover todos
+    if (selectedObjects.length > 0 && selectedObjects.includes(objectRef.current)) {
+      // Mover todos los objetos del grupo
+      for (const obj of selectedObjects) {
+        if (obj instanceof THREE.Group) {
+          obj.position.x += moveX
+          obj.position.z += moveZ
+          obj.updateWorldMatrix(true, true)
+        }
+      }
+      // Actualizar posición inicial para el siguiente frame
+      setDragStartMouse({ x: e.clientX, y: e.clientY })
+    } else {
+      // Mover solo el objeto individual
+      const newX = dragStartPos.x + moveX
+      const newZ = dragStartPos.z + moveZ
       
-      if (collidingObject) {
-        // HAY COLISIÓN - intentar empujar el otro objeto
-        const allObjects = getAllObjects()
-        const pushSuccessful = tryPushObject(
-          objectRef.current,
-          collidingObject,
-          allObjects
-        )
+      objectRef.current.position.x = newX
+      objectRef.current.position.z = newZ
+      objectRef.current.position.y = 0
+      objectRef.current.updateWorldMatrix(true, true)
+      
+      // Verificar colisiones solo para movimiento individual
+      const otherObjects = getOtherObjects(objectId)
+      if (otherObjects.length > 0) {
+        const collidingObject = checkCollisionWithObjects(objectRef.current, otherObjects, 0.02)
         
-        if (!pushSuccessful) {
-          // No se pudo empujar → Bloqueo hard (revertir posición de A)
-          objectRef.current.position.copy(currentPosition)
+        if (collidingObject) {
+          const newY = placeObjectOnTop(objectRef.current, collidingObject)
+          objectRef.current.position.y = newY
           objectRef.current.updateWorldMatrix(true, true)
         }
-        // Si pushSuccessful === true, B se movió y A mantiene su nueva posición
       }
     }
-  }, [isDragging, dragStartPos, dragStartMouse, objectRef, camera, getOtherObjects, getAllObjects, objectId])
+  }, [isDragging, dragStartPos, dragStartMouse, objectRef, camera, getOtherObjects, objectId, selectedObjects])
 
   // Función para manejar el fin del drag
   const handleDragEnd = useCallback(() => {
@@ -162,12 +172,44 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
 
   // Función para manejar click en el objeto
   const handleClick = useCallback((e: any) => {
+    // Detectar si Command (Mac) o Control (Windows) está presionado
+    const isMultiSelectKey = e.metaKey || e.ctrlKey
+    
+    if (interactionsDisabled && !isMultiSelectKey) {
+      e.stopPropagation()
+      return
+    }
+    
+    // Solo verificar si tiene algo encima cuando NO está en modo multi-select y NO hay selección múltiple
+    if (!isMultiSelectKey && selectedObjects.length === 0 && objectRef.current) {
+      const allObjects = getAllObjects()
+      if (hasObjectOnTop(objectRef.current, allObjects)) {
+        e.stopPropagation()
+        return
+      }
+    }
+    
+    // Si está en modo multi-select (Command/Control presionado), permitir siempre
+    if (isMultiSelectKey) {
+      e.stopPropagation()
+      if (objectRef.current) {
+        onObjectClick(objectRef.current, true)
+      }
+      return
+    }
+    
+    // Si el objeto está en un grupo seleccionado, no permitir selección individual (sin tecla modificadora)
+    if (selectedObjects.length > 0 && selectedObjects.includes(objectRef.current!)) {
+      e.stopPropagation()
+      return
+    }
+    
     e.stopPropagation()
     if (on3DClick) {
       on3DClick()
     }
     if (objectRef.current) {
-      onObjectClick(objectRef.current)
+      onObjectClick(objectRef.current, false)
       // Actualizar cursor inmediatamente después de la selección
       setTimeout(() => {
         if (selectedObject === objectRef.current) {
@@ -175,20 +217,33 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
         }
       }, 0)
     }
-  }, [objectRef, onObjectClick, on3DClick, selectedObject])
+  }, [objectRef, onObjectClick, on3DClick, selectedObject, interactionsDisabled, selectedObjects, getAllObjects])
 
   // Función para manejar hover
   const handlePointerEnter = useCallback((e: any) => {
     e.stopPropagation()
+    // No cambiar cursor si las interacciones están deshabilitadas
+    if (interactionsDisabled) return
     // Solo cambiar cursor si no estamos en drag
     if (!isDragging) {
-      if (selectedObject === objectRef.current) {
+      const isInGroup = selectedObjects.includes(objectRef.current!)
+      
+      // Solo verificar si tiene algo encima si NO está en selección múltiple
+      if (!isInGroup && selectedObjects.length === 0 && objectRef.current) {
+        const allObjects = getAllObjects()
+        if (hasObjectOnTop(objectRef.current, allObjects)) {
+          document.body.style.cursor = 'not-allowed'
+          return
+        }
+      }
+      
+      if (selectedObject === objectRef.current || isInGroup) {
         document.body.style.cursor = 'grab' // Mano abierta para drag
       } else {
         document.body.style.cursor = 'pointer' // Mano con dedo para click
       }
     }
-  }, [isDragging, selectedObject, objectRef])
+  }, [isDragging, selectedObject, objectRef, interactionsDisabled, selectedObjects, getAllObjects])
 
   // Función para manejar salida del hover
   const handlePointerLeave = useCallback((e: any) => {
@@ -201,8 +256,12 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
 
   // Función para manejar inicio de drag
   const handlePointerDown = useCallback((e: any) => {
+    if (interactionsDisabled) {
+      e.stopPropagation()
+      return
+    }
     handleDragStart(objectRef, e)
-  }, [handleDragStart, objectRef])
+  }, [handleDragStart, objectRef, interactionsDisabled])
 
   // Crear los event handlers para inyectar en los children
   const eventHandlers = {
@@ -239,4 +298,5 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
   return <>{childrenWithHandlers}</>
 }
 export default SelectableObject
+
 
