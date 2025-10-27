@@ -3,6 +3,8 @@ import { useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useSceneObjects } from '@/contexts/SceneObjectsContext'
 import { checkCollisionWithObjects, tryPushObject } from '@/utils/collisionDetection'
+import { snapAngleToGrid } from '@/utils/gridSnap'
+import { THREE_COLORS, getSelectionLineWidth, getHandleElevation, getCornerHandleSize, getRotationHandleSize } from '@/lib/colors'
 
 interface SelectionBoxProps {
   selectedObject: THREE.Object3D | null
@@ -12,6 +14,7 @@ interface SelectionBoxProps {
   onScaleEnd?: () => void
   objectId: string  // ID del objeto para detección de colisiones
   showHandles?: boolean  // Si mostrar los handles de rotación y escala (default: true)
+  showGrid?: boolean  // Si la grilla está activa para snap
 }
 
 /**
@@ -27,7 +30,7 @@ interface SelectionBoxProps {
  * - Rotación interactiva en el eje Y con click & drag
  * - El bounding box rota junto con el objeto (porque es hijo del mismo grupo)
  */
-export default function SelectionBox({ selectedObject, onRotationStart, onRotationEnd, onScaleStart, onScaleEnd, objectId, showHandles = true }: SelectionBoxProps) {
+export default function SelectionBox({ selectedObject, onRotationStart, onRotationEnd, onScaleStart, onScaleEnd, objectId, showHandles = true, showGrid = false }: SelectionBoxProps) {
   const { scene, camera } = useThree()
   const { getOtherObjects, getAllObjects } = useSceneObjects()
   const [boxBounds, setBoxBounds] = useState<THREE.Box3 | null>(null)
@@ -99,25 +102,27 @@ export default function SelectionBox({ selectedObject, onRotationStart, onRotati
     if (!boxBounds) return []
     
     const lineLength = 0.25
+    // Elevar el handle ligeramente por encima del piso para que sea visible sobre superficies
+    const handleElevation = getHandleElevation()
     
     const handles = [
       { 
-        pos: new THREE.Vector3((boxBounds.min.x + boxBounds.max.x) / 2, boxBounds.min.y, boxBounds.min.z),
+        pos: new THREE.Vector3((boxBounds.min.x + boxBounds.max.x) / 2, boxBounds.min.y + handleElevation, boxBounds.min.z),
         direction: new THREE.Vector3(0, 0, -1),
         name: 'front'
       },
       { 
-        pos: new THREE.Vector3((boxBounds.min.x + boxBounds.max.x) / 2, boxBounds.min.y, boxBounds.max.z),
+        pos: new THREE.Vector3((boxBounds.min.x + boxBounds.max.x) / 2, boxBounds.min.y + handleElevation, boxBounds.max.z),
         direction: new THREE.Vector3(0, 0, 1),
         name: 'back'
       },
       { 
-        pos: new THREE.Vector3(boxBounds.min.x, boxBounds.min.y, (boxBounds.min.z + boxBounds.max.z) / 2),
+        pos: new THREE.Vector3(boxBounds.min.x, boxBounds.min.y + handleElevation, (boxBounds.min.z + boxBounds.max.z) / 2),
         direction: new THREE.Vector3(-1, 0, 0),
         name: 'left'
       },
       { 
-        pos: new THREE.Vector3(boxBounds.max.x, boxBounds.min.y, (boxBounds.min.z + boxBounds.max.z) / 2),
+        pos: new THREE.Vector3(boxBounds.max.x, boxBounds.min.y + handleElevation, (boxBounds.min.z + boxBounds.max.z) / 2),
         direction: new THREE.Vector3(1, 0, 0),
         name: 'right'
       }
@@ -215,6 +220,7 @@ export default function SelectionBox({ selectedObject, onRotationStart, onRotati
           objectId={objectId}
           getOtherObjects={getOtherObjects}
           getAllObjects={getAllObjects}
+          showGrid={showGrid}
         />
       ))}
     </group>
@@ -246,7 +252,7 @@ function WireframeBox({ boxBounds }: { boxBounds: THREE.Box3 }) {
   // El wireframe SI debe escalar con el objeto para mostrar el bounding box real
   return (
     <lineSegments geometry={wireframeGeometry}>
-      <lineBasicMaterial color={0xffffff} linewidth={1.5} />
+      <lineBasicMaterial color={THREE_COLORS.seleccionLinea} linewidth={getSelectionLineWidth()} />
     </lineSegments>
   )
 }
@@ -400,9 +406,9 @@ function CornerHandle({
         e.stopPropagation()
       }}
     >
-      <sphereGeometry args={[0.035, 16, 16]} />
+      <sphereGeometry args={[getCornerHandleSize(), 16, 16]} />
       <meshBasicMaterial 
-        color={hovered ? 0x000000 : 0xffffff}
+        color={hovered ? THREE_COLORS.seleccionHover : THREE_COLORS.seleccion}
         depthTest={true}
         depthWrite={true}
       />
@@ -420,7 +426,8 @@ function RotationHandle({
   onRotationEnd,
   objectId,
   getOtherObjects,
-  getAllObjects
+  getAllObjects,
+  showGrid
 }: { 
   visible: boolean
   startPos: THREE.Vector3
@@ -431,6 +438,7 @@ function RotationHandle({
   objectId: string
   getOtherObjects: (excludeId: string) => THREE.Object3D[]
   getAllObjects: () => THREE.Object3D[]
+  showGrid?: boolean
 }) {
   const circleMeshRef = useRef<THREE.Mesh>(null)
   const [hovered, setHovered] = useState(false)
@@ -466,8 +474,16 @@ function RotationHandle({
       // Guardar rotación anterior
       const previousRotation = selectedObject.rotation.y
       
+      // Calcular nueva rotación
+      let newRotation = startRotation.current + rotationDelta
+      
+      // Aplicar snap a la grilla si está habilitada
+      if (showGrid) {
+        newRotation = snapAngleToGrid(newRotation, true)
+      }
+      
       // Aplicar nueva rotación temporalmente
-      selectedObject.rotation.y = startRotation.current + rotationDelta
+      selectedObject.rotation.y = newRotation
       selectedObject.updateMatrixWorld(true)
       
       // Verificar colisiones después de rotar
@@ -508,7 +524,7 @@ function RotationHandle({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isRotating, selectedObject, onRotationEnd, objectId, getOtherObjects, getAllObjects])
+  }, [isRotating, selectedObject, onRotationEnd, objectId, getOtherObjects, getAllObjects, showGrid])
 
   if (!visible) return null
 
@@ -520,18 +536,17 @@ function RotationHandle({
           const points = [startPos, endPos]
           const geometry = new THREE.BufferGeometry().setFromPoints(points)
           const material = new THREE.LineBasicMaterial({ 
-            color: (hovered || isRotating) ? 0x000000 : 0xffffff, 
-            linewidth: 1.5 
+            color: (hovered || isRotating) ? THREE_COLORS.seleccionHover : THREE_COLORS.seleccion, 
+            linewidth: getSelectionLineWidth() 
           })
           return new THREE.Line(geometry, material)
         })()}
       />
 
-      {/* Círculo al final - CON counter-scale para mantener tamaño constante */}
+      {/* Esfera de rotación - CON counter-scale para mantener tamaño constante */}
       <mesh
         ref={circleMeshRef}
         position={endPos}
-        rotation={[-Math.PI / 2, 0, 0]}
         onPointerEnter={(e) => {
           e.stopPropagation()
           setHovered(true)
@@ -558,12 +573,11 @@ function RotationHandle({
           e.stopPropagation()
         }}
       >
-        <circleGeometry args={[0.07, 32]} />
+        <sphereGeometry args={[getRotationHandleSize(), 16, 16]} />
         <meshBasicMaterial 
-          color={(hovered || isRotating) ? 0x000000 : 0xffffff}
+          color={(hovered || isRotating) ? THREE_COLORS.seleccionHover : THREE_COLORS.seleccion}
           depthTest={true}
           depthWrite={true}
-          side={THREE.DoubleSide}
         />
       </mesh>
     </group>

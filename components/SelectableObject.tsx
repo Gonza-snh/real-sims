@@ -3,6 +3,7 @@ import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useSceneObjects, useObjectRegistration } from '@/contexts/SceneObjectsContext'
 import { checkCollisionWithObjects, placeObjectOnTop, hasObjectOnTop } from '@/utils/collisionDetection'
+import { snapToGrid } from '@/utils/gridSnap'
 
 interface SelectableObjectProps {
   children: React.ReactNode
@@ -16,6 +17,7 @@ interface SelectableObjectProps {
   objectId: string  // ID único para registro y detección de colisiones
   interactionsDisabled?: boolean  // Deshabilitar todas las interacciones
   hasObjectOnTopProp?: boolean  // Indicador externo de que tiene objeto encima
+  showGrid?: boolean  // Si la grilla está activa para snap
 }
 
 const SelectableObject: React.FC<SelectableObjectProps> = ({
@@ -28,7 +30,8 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
   onObjectDragStart,
   onObjectDragEnd,
   objectId,
-  interactionsDisabled = false
+  interactionsDisabled = false,
+  showGrid = false
 }) => {
   const { camera } = useThree()
   const { getOtherObjects, getAllObjects } = useSceneObjects()
@@ -89,8 +92,17 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
       // Mover todos los objetos del grupo
       for (const obj of selectedObjects) {
         if (obj instanceof THREE.Group) {
-          obj.position.x += moveX
-          obj.position.z += moveZ
+          const newPos = new THREE.Vector3(
+            obj.position.x + moveX,
+            obj.position.y,
+            obj.position.z + moveZ
+          )
+          
+          // Aplicar snap a la grilla si está habilitada
+          const snappedPos = snapToGrid(newPos, showGrid)
+          
+          obj.position.x = snappedPos.x
+          obj.position.z = snappedPos.z
           obj.updateWorldMatrix(true, true)
         }
       }
@@ -98,11 +110,17 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
       setDragStartMouse({ x: e.clientX, y: e.clientY })
     } else {
       // Mover solo el objeto individual
-      const newX = dragStartPos.x + moveX
-      const newZ = dragStartPos.z + moveZ
+      const newPos = new THREE.Vector3(
+        dragStartPos.x + moveX,
+        0,
+        dragStartPos.z + moveZ
+      )
       
-      objectRef.current.position.x = newX
-      objectRef.current.position.z = newZ
+      // Aplicar snap a la grilla si está habilitada
+      const snappedPos = snapToGrid(newPos, showGrid)
+      
+      objectRef.current.position.x = snappedPos.x
+      objectRef.current.position.z = snappedPos.z
       objectRef.current.position.y = 0
       objectRef.current.updateWorldMatrix(true, true)
       
@@ -118,7 +136,7 @@ const SelectableObject: React.FC<SelectableObjectProps> = ({
         }
       }
     }
-  }, [isDragging, dragStartPos, dragStartMouse, objectRef, camera, getOtherObjects, objectId, selectedObjects])
+  }, [isDragging, dragStartPos, dragStartMouse, objectRef, camera, getOtherObjects, objectId, selectedObjects, showGrid])
 
   // Función para manejar el fin del drag
   const handleDragEnd = useCallback(() => {

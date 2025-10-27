@@ -1,5 +1,7 @@
 import { ContactShadows, Grid } from '@react-three/drei'
 import * as THREE from 'three'
+import { snapToGrid } from '@/utils/gridSnap'
+import { getFloorElevation } from '@/lib/colors'
 
 interface SceneEnvironmentProps {
   floorColor: string
@@ -26,20 +28,26 @@ export default function SceneEnvironment({
   contactShadowsBlur,
   onFloorClick
 }: SceneEnvironmentProps) {
+  
+  // Función helper para manejar clicks con snap a la grilla
+  const handleFloorClick = (point: THREE.Vector3) => {
+    if (onFloorClick) {
+      // Aplicar snap a la grilla si está habilitada
+      const snappedPoint = snapToGrid(point, showGrid)
+      onFloorClick(snappedPoint)
+    }
+  }
   return (
     <>
       {/* Suelo gris opaco */}
       <mesh 
         rotation={[-Math.PI / 2, 0, 0]} 
-        position={[0, -0.001, 0]} 
+        position={[0, getFloorElevation(), 0]} 
         receiveShadow
         onClick={(e) => {
           console.log('⬛ CLICK EN SUELO')
           e.stopPropagation()
-          if (onFloorClick) {
-            // Pasar el punto 3D del click
-            onFloorClick(e.point)
-          }
+          handleFloorClick(e.point)
         }}
       >
         <planeGeometry args={[20, 20]} />
@@ -53,9 +61,7 @@ export default function SceneEnvironment({
           position={[0, 0.001, -10]}
           onClick={(e) => {
             e.stopPropagation()
-            if (onFloorClick) {
-              onFloorClick(e.point)
-            }
+            handleFloorClick(e.point)
           }}
         >
           <boxGeometry args={[20, 0.001, 0.005]} />
@@ -66,9 +72,7 @@ export default function SceneEnvironment({
           position={[0, 0.001, 10]}
           onClick={(e) => {
             e.stopPropagation()
-            if (onFloorClick) {
-              onFloorClick(e.point)
-            }
+            handleFloorClick(e.point)
           }}
         >
           <boxGeometry args={[20, 0.001, 0.005]} />
@@ -79,9 +83,7 @@ export default function SceneEnvironment({
           position={[-10, 0.001, 0]}
           onClick={(e) => {
             e.stopPropagation()
-            if (onFloorClick) {
-              onFloorClick(e.point)
-            }
+            handleFloorClick(e.point)
           }}
         >
           <boxGeometry args={[0.005, 0.001, 20]} />
@@ -92,9 +94,7 @@ export default function SceneEnvironment({
           position={[10, 0.001, 0]}
           onClick={(e) => {
             e.stopPropagation()
-            if (onFloorClick) {
-              onFloorClick(e.point)
-            }
+            handleFloorClick(e.point)
           }}
         >
           <boxGeometry args={[0.005, 0.001, 20]} />
@@ -106,10 +106,10 @@ export default function SceneEnvironment({
       {showGrid && (
         <Grid
           args={[20, 20]}
-          cellSize={1}
-          cellThickness={0}
-          cellColor="transparent"
-          sectionSize={0.1}
+          cellSize={0.1}
+          cellThickness={0.5}
+          cellColor={gridCellColor}
+          sectionSize={1.0}
           sectionThickness={1}
           sectionColor={gridSectionColor}
           fadeDistance={30}
@@ -118,14 +118,14 @@ export default function SceneEnvironment({
         />
       )}
 
-      {/* Sombras de contacto suaves */}
-      <ContactShadows
-        position={[0, 0.001, 0]}
+      {/* Sombras de contacto suaves - Deshabilitadas temporalmente */}
+      {/* <ContactShadows
+        position={[0, getFloorElevation() + 0.001, 0]}
         opacity={contactShadowsOpacity}
         scale={10}
         blur={contactShadowsBlur}
         far={2}
-      />
+      /> */}
     </>
   )
 }

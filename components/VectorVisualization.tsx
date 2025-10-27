@@ -2,6 +2,8 @@ import React, { useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
+import { snapToGrid } from '@/utils/gridSnap'
+import { getMultiSelectionColor } from '@/lib/colors'
 
 interface VectorVisualizationProps {
   startPoint: THREE.Vector3 | null
@@ -45,7 +47,7 @@ export default function VectorVisualization({
       {/* Línea del vector */}
       <Line
         points={points}
-        color="#EFE9D3"
+        color={getMultiSelectionColor()}
         lineWidth={2}
         opacity={0.8}
         transparent
@@ -53,8 +55,8 @@ export default function VectorVisualization({
 
       {/* Punto de inicio */}
       <mesh position={startPoint}>
-        <sphereGeometry args={[0.05, 16, 16]} />
-        <meshBasicMaterial color="#EFE9D3" />
+        <sphereGeometry args={[0.01, 12, 12]} />
+        <meshBasicMaterial color={getMultiSelectionColor()} />
       </mesh>
 
       {/* Label con la distancia en el punto medio */}

@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react'
 import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
+import { snapToGrid } from '@/utils/gridSnap'
+import { getMultiRotationColor } from '@/lib/colors'
 
 interface ArcVisualizationProps {
   centerPoint: THREE.Vector3 | null
@@ -13,6 +15,7 @@ interface ArcVisualizationProps {
   onManualAngleChange?: (value: string) => void
   onManualAngleSubmit?: (angle: number) => void
   onManualInputCancel?: () => void
+  showGrid?: boolean  // Si la grilla está activa para snap
 }
 
 /**
@@ -30,19 +33,21 @@ export default function ArcVisualization({
   manualAngle = '',
   onManualAngleChange,
   onManualAngleSubmit,
-  onManualInputCancel
+  onManualInputCancel,
+  showGrid = false
 }: ArcVisualizationProps) {
   // Si no está visible o no hay centerPoint, no mostrar nada
   if (!visible || !centerPoint) return null
   
   // FASE 1: Solo centerPoint (primer click) - mostrar solo la esfera
   if (!startPoint) {
+    const snappedCenter = snapToGrid(centerPoint, showGrid)
     return (
       <group>
         {/* Esfera en el centro de rotación - igual que VectorVisualization */}
-        <mesh position={centerPoint}>
-          <sphereGeometry args={[0.05, 16, 16]} />
-          <meshBasicMaterial color="#EFE9D3" />
+        <mesh position={snappedCenter}>
+          <sphereGeometry args={[0.01, 12, 12]} />
+          <meshBasicMaterial color={getMultiRotationColor()} />
         </mesh>
       </group>
     )
@@ -51,18 +56,21 @@ export default function ArcVisualization({
   // FASE 2: centerPoint + startPoint pero sin endPoint (después del primer click, antes del segundo)
   // Mostrar esfera en centerPoint + línea hasta el mouse (endPoint)
   if (!endPoint) {
+    const snappedCenter = snapToGrid(centerPoint, showGrid)
+    const snappedStart = snapToGrid(startPoint, showGrid)
+    
     return (
       <group>
         {/* Esfera en el centro de rotación */}
-        <mesh position={centerPoint}>
-          <sphereGeometry args={[0.05, 16, 16]} />
-          <meshBasicMaterial color="#EFE9D3" />
+        <mesh position={snappedCenter}>
+          <sphereGeometry args={[0.01, 12, 12]} />
+          <meshBasicMaterial color={getMultiRotationColor()} />
         </mesh>
         
         {/* Línea desde el centro hasta el mouse */}
         <Line
-          points={[centerPoint, startPoint]}
-          color="#EFE9D3"
+          points={[snappedCenter, snappedStart]}
+          color={getMultiRotationColor()}
           lineWidth={2}
           opacity={0.8}
           transparent
@@ -73,10 +81,15 @@ export default function ArcVisualization({
 
   const angleDegrees = Math.round((angle * 180) / Math.PI)
   
+  // Aplicar snap a todos los puntos
+  const snappedCenter = snapToGrid(centerPoint, showGrid)
+  const snappedStart = snapToGrid(startPoint, showGrid)
+  const snappedEnd = snapToGrid(endPoint, showGrid)
+  
   // Calcular radio del arco (distancia desde centro al punto inicial)
   const radius = Math.sqrt(
-    Math.pow(startPoint.x - centerPoint.x, 2) + 
-    Math.pow(startPoint.z - centerPoint.z, 2)
+    Math.pow(snappedStart.x - snappedCenter.x, 2) + 
+    Math.pow(snappedStart.z - snappedCenter.z, 2)
   )
 
   // Generar puntos del arco
@@ -86,53 +99,53 @@ export default function ArcVisualization({
     
     // Calcular ángulo inicial
     const startAngle = Math.atan2(
-      startPoint.z - centerPoint.z,
-      startPoint.x - centerPoint.x
+      snappedStart.z - snappedCenter.z,
+      snappedStart.x - snappedCenter.x
     )
     
     for (let i = 0; i <= segments; i++) {
       const t = i / segments
       const currentAngle = startAngle + angle * t
       
-      const x = centerPoint.x + radius * Math.cos(currentAngle)
-      const z = centerPoint.z + radius * Math.sin(currentAngle)
+      const x = snappedCenter.x + radius * Math.cos(currentAngle)
+      const z = snappedCenter.z + radius * Math.sin(currentAngle)
       
-      points.push(new THREE.Vector3(x, centerPoint.y + 0.01, z))
+      points.push(new THREE.Vector3(x, snappedCenter.y + 0.01, z))
     }
     
     return points
-  }, [centerPoint, startPoint, angle, radius])
+  }, [snappedCenter, snappedStart, angle, radius])
 
   // Líneas del vector inicial y final
-  const startLine = useMemo(() => [centerPoint, startPoint], [centerPoint, startPoint])
-  const endLine = useMemo(() => [centerPoint, endPoint], [centerPoint, endPoint])
+  const startLine = useMemo(() => [snappedCenter, snappedStart], [snappedCenter, snappedStart])
+  const endLine = useMemo(() => [snappedCenter, snappedEnd], [snappedCenter, snappedEnd])
 
   // Posición del label (en el punto medio del arco)
   const labelPosition = useMemo(() => {
     const midAngle = Math.atan2(
-      startPoint.z - centerPoint.z,
-      startPoint.x - centerPoint.x
+      snappedStart.z - snappedCenter.z,
+      snappedStart.x - snappedCenter.x
     ) + angle / 2
     
     const labelRadius = radius * 0.7 // Un poco más cerca del centro
-    const x = centerPoint.x + labelRadius * Math.cos(midAngle)
-    const z = centerPoint.z + labelRadius * Math.sin(midAngle)
+    const x = snappedCenter.x + labelRadius * Math.cos(midAngle)
+    const z = snappedCenter.z + labelRadius * Math.sin(midAngle)
     
-    return new THREE.Vector3(x, centerPoint.y + 0.3, z)
-  }, [centerPoint, startPoint, angle, radius])
+    return new THREE.Vector3(x, snappedCenter.y + 0.3, z)
+  }, [snappedCenter, snappedStart, angle, radius])
 
   return (
     <group>
       {/* Centro de rotación */}
-      <mesh position={centerPoint}>
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshBasicMaterial color="#EFE9D3" />
+      <mesh position={snappedCenter}>
+        <sphereGeometry args={[0.01, 12, 12]} />
+        <meshBasicMaterial color={getMultiRotationColor()} />
       </mesh>
       
       {/* Vector inicial (desde centro a punto inicial) */}
       <Line
         points={startLine}
-        color="#EFE9D3"
+        color={getMultiRotationColor()}
         lineWidth={2}
         opacity={0.6}
         transparent
@@ -144,7 +157,7 @@ export default function ArcVisualization({
       {/* Vector final (desde centro a punto actual/final) */}
       <Line
         points={endLine}
-        color="#EFE9D3"
+        color={getMultiRotationColor()}
         lineWidth={2}
         opacity={0.6}
         transparent
@@ -156,22 +169,22 @@ export default function ArcVisualization({
       {/* Arco que muestra la rotación */}
       <Line
         points={arcPoints}
-        color="#EFE9D3"
+        color={getMultiRotationColor()}
         lineWidth={3}
         opacity={0.9}
         transparent
       />
       
       {/* Punto en el inicio del arco */}
-      <mesh position={startPoint}>
-        <sphereGeometry args={[0.05, 16, 16]} />
-        <meshBasicMaterial color="#EFE9D3" />
+      <mesh position={snappedStart}>
+        <sphereGeometry args={[0.01, 12, 12]} />
+        <meshBasicMaterial color={getMultiRotationColor()} />
       </mesh>
       
       {/* Punto en el final del arco */}
-      <mesh position={endPoint}>
-        <sphereGeometry args={[0.05, 16, 16]} />
-        <meshBasicMaterial color="#EFE9D3" />
+      <mesh position={snappedEnd}>
+        <sphereGeometry args={[0.01, 12, 12]} />
+        <meshBasicMaterial color={getMultiRotationColor()} />
       </mesh>
 
       {/* Label con el ángulo en grados */}

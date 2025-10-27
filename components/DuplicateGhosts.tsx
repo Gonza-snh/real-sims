@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import VectorVisualization from './VectorVisualization'
+import { snapToGrid } from '@/utils/gridSnap'
 
 interface DuplicateGhostsProps {
   isActive: boolean
   objectsToDuplicate: THREE.Object3D[]
   onDuplicateComplete: (offset: THREE.Vector3) => void
   onClickEvent?: THREE.Vector3 | null  // Recibe clicks desde Scene3D
+  showGrid?: boolean  // Si la grilla está activa para snap
 }
 
 export interface DuplicateGhostsHandle {
@@ -23,7 +25,8 @@ export default function DuplicateGhosts({
   isActive,
   objectsToDuplicate,
   onDuplicateComplete,
-  onClickEvent = null
+  onClickEvent = null,
+  showGrid = false
 }: DuplicateGhostsProps) {
   const { camera, raycaster, scene } = useThree()
   const [startPoint, setStartPoint] = useState<THREE.Vector3 | null>(null)
@@ -140,7 +143,12 @@ export default function DuplicateGhosts({
 
       if (!mousePoint) return
 
-      // Aplicar snap ortogonal si Shift está presionado
+      // Aplicar snap a la grilla si está habilitada
+      if (showGrid) {
+        mousePoint = snapToGrid(mousePoint, true)
+      }
+
+      // Aplicar snap ortogonal si Shift está presionado (sobrescribe el snap de grilla)
       if (isShiftPressed) {
         const offset = mousePoint.clone().sub(startPoint)
         

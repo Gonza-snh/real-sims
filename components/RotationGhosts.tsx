@@ -2,12 +2,15 @@ import { useEffect, useState, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import ArcVisualization from './ArcVisualization'
+import { snapToGrid, snapAngleToGrid } from '@/utils/gridSnap'
 
 interface RotationGhostsProps {
   isActive: boolean
   objectsToRotate: THREE.Object3D[]
   onRotationComplete: (center: THREE.Vector3, angle: number) => void
   onClickEvent?: THREE.Vector3 | null
+  showGrid?: boolean  // Si la grilla está activa para snap
+  onSecondClickStateChange?: (isSecondClick: boolean) => void  // Callback para comunicar estado del segundo click
 }
 
 /**
@@ -18,7 +21,9 @@ export default function RotationGhosts({
   isActive,
   objectsToRotate,
   onRotationComplete,
-  onClickEvent = null
+  onClickEvent = null,
+  showGrid = false,
+  onSecondClickStateChange
 }: RotationGhostsProps) {
   const { camera, raycaster, scene } = useThree()
   const [centerPoint, setCenterPoint] = useState<THREE.Vector3 | null>(null)
@@ -107,13 +112,14 @@ export default function RotationGhosts({
   useEffect(() => {
     if (!isActive || !onClickEvent) return
 
-    const clickPoint = onClickEvent
+    const clickPoint = snapToGrid(onClickEvent, showGrid)
 
     if (!centerPoint) {
       // Primer click: definir centro de rotación
       console.log('🎯 Primer click - Centro de rotación:', clickPoint)
       setCenterPoint(clickPoint)
       setStartPoint(clickPoint) // Inicializar startPoint para que el mouse lo siga
+      if (onSecondClickStateChange) onSecondClickStateChange(false)
     } else if (!isStartPointFixed) {
       // Segundo click: fijar punto inicial del vector
       // Aplicar snap ortogonal si Shift está presionado
@@ -132,6 +138,7 @@ export default function RotationGhosts({
       setIsStartPointFixed(true) // Marcar como fijado
       setCurrentPoint(finalPoint) // Inicializar currentPoint
       lastAngleRef.current = 0 // Resetear el ángulo acumulado
+      if (onSecondClickStateChange) onSecondClickStateChange(true)
       createGhostObjects()
     } else if (startPoint) {
       // Tercer click: calcular ángulo y completar rotación
@@ -154,7 +161,12 @@ export default function RotationGhosts({
       while (angle > Math.PI) angle -= 2 * Math.PI
       while (angle < -Math.PI) angle += 2 * Math.PI
       
-      // Aplicar snap a 45° si Shift está presionado
+      // Aplicar snap a la grilla si está habilitada
+      if (showGrid) {
+        angle = snapAngleToGrid(angle, true)
+      }
+      
+      // Aplicar snap a 45° si Shift está presionado (sobrescribe el snap de grilla)
       if (isShiftPressed) {
         const snapAngle = Math.PI / 4 // 45 grados
         angle = Math.round(angle / snapAngle) * snapAngle
@@ -162,8 +174,11 @@ export default function RotationGhosts({
       
       console.log('📐 Ángulo de rotación:', angle, 'radianes =', (angle * 180 / Math.PI).toFixed(1), '°')
       onRotationComplete(centerPoint, angle)
+      
+      // Resetear estado
+      if (onSecondClickStateChange) onSecondClickStateChange(false)
     }
-  }, [onClickEvent])
+  }, [onClickEvent, showGrid, isShiftPressed, onSecondClickStateChange])
 
   // Seguir el mouse 
   useEffect(() => {
@@ -246,7 +261,12 @@ export default function RotationGhosts({
       // Guardar el ángulo para la siguiente iteración
       lastAngleRef.current = angle
       
-      // Aplicar snap a 45° si Shift está presionado
+      // Aplicar snap a la grilla si está habilitada
+      if (showGrid) {
+        angle = snapAngleToGrid(angle, true)
+      }
+      
+      // Aplicar snap a 45° si Shift está presionado (sobrescribe el snap de grilla)
       if (isShiftPressed) {
         const snapAngle = Math.PI / 4 // 45 grados
         angle = Math.round(angle / snapAngle) * snapAngle
@@ -261,7 +281,7 @@ export default function RotationGhosts({
       canvas.addEventListener('mousemove', handleMouseMove)
       return () => canvas.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [isActive, centerPoint, startPoint, camera, raycaster, isShiftPressed, isManualInput, isStartPointFixed])
+  }, [isActive, centerPoint, startPoint, camera, raycaster, isShiftPressed, isManualInput, isStartPointFixed, showGrid])
 
   const createGhostObjects = () => {
     if (!centerPoint) return
@@ -343,6 +363,7 @@ export default function RotationGhosts({
         setIsManualInput(false)
         setManualAngle('')
       }}
+      showGrid={showGrid}
     />
   )
 }

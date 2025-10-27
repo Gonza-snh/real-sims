@@ -21,6 +21,7 @@ interface DemoObjectsProps {
   onScaleEnd?: () => void
   interactionsDisabled?: boolean
   hideHandles?: boolean
+  showGrid?: boolean  // Si la grilla está activa para snap
 }
 
 /**
@@ -53,7 +54,8 @@ export default function DemoObjects({
   onScaleStart,
   onScaleEnd,
   interactionsDisabled = false,
-  hideHandles = false
+  hideHandles = false,
+  showGrid = false
 }: DemoObjectsProps) {
   const cubeRef = useRef<THREE.Group>(null!)
   const cylinderRef = useRef<THREE.Group>(null!)
@@ -91,6 +93,7 @@ export default function DemoObjects({
         onObjectDragStart={onObjectDragStart}
         onObjectDragEnd={onObjectDragEnd}
         interactionsDisabled={interactionsDisabled}
+        showGrid={showGrid}
       >
         <group ref={cubeRef} position={[0, 0, 0]}>
           {/* Mesh en origen local (0,0,0) - geometría trasladada para que el origen esté en la base */}
@@ -117,6 +120,7 @@ export default function DemoObjects({
               onScaleEnd={onScaleEnd}
               objectId="demo-cube"
               showHandles={selectedObject === cubeRef.current && !cubeHasObjectOnTop && !hideHandles}
+              showGrid={showGrid}
             />
           )}
         </group>
@@ -133,6 +137,7 @@ export default function DemoObjects({
         onObjectDragStart={onObjectDragStart}
         onObjectDragEnd={onObjectDragEnd}
         interactionsDisabled={interactionsDisabled}
+        showGrid={showGrid}
       >
         <group ref={cylinderRef} position={[2, 0, 0]}>
           {/* Mesh en origen local (0,0,0) - la geometría se extiende hacia arriba naturalmente */}

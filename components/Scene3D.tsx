@@ -13,6 +13,9 @@ import SelectionBoxOverlay from './SelectionBoxOverlay'
 import SelectionBoxDetector from './SelectionBoxDetector'
 import DuplicateGhosts from './DuplicateGhosts'
 import RotationGhosts from './RotationGhosts'
+import CursorPreview from './CursorPreview'
+import SpaceCreator from './SpaceCreator'
+import Space from './Space'
 
 interface Scene3DProps {
   showGrid?: boolean
@@ -29,6 +32,8 @@ interface Scene3DProps {
   isRotating?: boolean
   onRotationComplete?: (objects: THREE.Object3D[], center: THREE.Vector3, angle: number) => void
   onCameraControl?: (control: (view: 'top' | 'front' | 'right' | 'left' | 'back' | 'bottom') => void) => void
+  isCreatingSpace?: boolean
+  onSpaceComplete?: (space: { start: THREE.Vector3; end: THREE.Vector3; width: number; length: number; height: number }) => void
 }
 
 // Configuración de colores y apariencia del entorno
@@ -40,8 +45,8 @@ const SCENE_CONFIG = {
     borderColor: '#F7F5EF',
     
     // Colores del grid
-    gridCellColor: '#F7F5EF',     // Gris medio para celdas
-    gridSectionColor: '#F7F5EF',  // Negro para secciones principales
+    gridCellColor: '#FF00FF',     // Magenta para celdas
+    gridSectionColor: '#FF00FF',  // Magenta para secciones principales
   },
   
   lighting: {
@@ -61,13 +66,39 @@ const SCENE_CONFIG = {
 
 }
 
-export default function Scene3D({ showGrid = true, environmentPreset = 'warehouse', cameraType = 'perspective', onObjectSelection, shouldDeselectObject = false, on3DClick, activeTool = 'seleccionar', isDuplicating = false, onDuplicateComplete, isMoving = false, onMoveComplete, isRotating = false, onRotationComplete, onCameraControl }: Scene3DProps = {}) {
+// Función para obtener archivo HDR local
+function getEnvironmentFile(preset: string): string | undefined {
+  const localFiles: Record<string, string> = {
+    'warehouse': '/hdri/empty_warehouse_01_1k.hdr',
+    'studio': '/hdri/studio_small_09_1k.hdr',
+    'forest': '/hdri/forest_slope_1k.hdr',
+    'sunset': '/hdri/venice_sunset_1k.hdr',
+    'dawn': '/hdri/kiara_1_dawn_1k.hdr',
+    'night': '/hdri/evening_road_01_1k.hdr',
+    'city': '/hdri/urban_street_01_1k.hdr',
+    'apartment': '/hdri/studio_small_08_1k.hdr',
+    'park': '/hdri/forest_slope_1k.hdr',
+    'lobby': '/hdri/studio_small_08_1k.hdr'
+  }
+  
+  return localFiles[preset]
+}
+
+// Función para obtener preset de drei
+function getEnvironmentPreset(preset: string): 'sunset' | 'dawn' | 'night' | 'warehouse' | 'forest' | 'apartment' | 'studio' | 'city' | 'park' | 'lobby' | undefined {
+  // Todos los presets ahora tienen archivos locales, no usar presets de drei
+  return undefined
+}
+
+export default function Scene3D({ showGrid = true, environmentPreset = 'warehouse', cameraType = 'perspective', onObjectSelection, shouldDeselectObject = false, on3DClick, activeTool = 'seleccionar', isDuplicating = false, onDuplicateComplete, isMoving = false, onMoveComplete, isRotating = false, onRotationComplete, onCameraControl, isCreatingSpace = false, onSpaceComplete }: Scene3DProps = {}) {
   const [selectedObject, setSelectedObject] = useState<THREE.Object3D | null>(null)
   const [selectedObjects, setSelectedObjects] = useState<THREE.Object3D[]>([])
   const orbitControlsRef = useRef<any>(null)
   const [duplicateClickEvent, setDuplicateClickEvent] = useState<THREE.Vector3 | null>(null)
   const [moveClickEvent, setMoveClickEvent] = useState<THREE.Vector3 | null>(null)
   const [rotateClickEvent, setRotateClickEvent] = useState<THREE.Vector3 | null>(null)
+  const [spaceClickEvent, setSpaceClickEvent] = useState<THREE.Vector3 | null>(null)
+  const [createdSpaces, setCreatedSpaces] = useState<Array<{ start: THREE.Vector3; end: THREE.Vector3; width: number; length: number; height: number }>>([])
   
   // Función para controlar la cámara programáticamente
   const setCameraView = useCallback((view: 'top' | 'front' | 'right' | 'left' | 'back' | 'bottom') => {
@@ -170,6 +201,7 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
   // Para controlar rotación de objetos
   const [isRotatingObject, setIsRotatingObject] = useState<boolean>(false)
   const [isDraggingObject, setIsDraggingObject] = useState<boolean>(false)
+  const [isRotatingSecondClick, setIsRotatingSecondClick] = useState<boolean>(false)
   
   // Determinar si el marco de selección está activo
   const isSelectionBoxActive = activeTool === 'marco-seleccion'
@@ -288,6 +320,22 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
     }
   }, [objectsToDuplicate, onRotationComplete])
 
+  // Manejar cuando se completa la creación de un espacio
+  const handleSpaceComplete = useCallback((space: { start: THREE.Vector3; end: THREE.Vector3; width: number; length: number; height: number }) => {
+    console.log('🏠 Scene3D - Espacio creado:', space)
+    
+    // Agregar el espacio a la lista de espacios creados
+    setCreatedSpaces(prev => [...prev, space])
+    
+    // Notificar al padre
+    if (onSpaceComplete) {
+      onSpaceComplete(space)
+    }
+    
+    // Desactivar la herramienta después de crear el espacio
+    // Esto se manejará desde el componente padre
+  }, [onSpaceComplete])
+
 
 
   return (
@@ -357,6 +405,7 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
             objectsToDuplicate={objectsToDuplicate}
             onDuplicateComplete={handleDuplicateComplete}
             onClickEvent={duplicateClickEvent}
+            showGrid={showGrid}
           />
           
           {/* Sistema de movimiento con fantasmas */}
@@ -365,6 +414,7 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
             objectsToDuplicate={objectsToDuplicate}
             onDuplicateComplete={handleMoveComplete}
             onClickEvent={moveClickEvent}
+            showGrid={showGrid}
           />
           
           {/* Sistema de rotación con fantasmas y arco visual */}
@@ -373,6 +423,36 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
             objectsToRotate={objectsToDuplicate}
             onRotationComplete={handleRotationComplete}
             onClickEvent={rotateClickEvent}
+            showGrid={showGrid}
+            onSecondClickStateChange={setIsRotatingSecondClick}
+          />
+          
+          {/* Sistema de creación de espacios */}
+          <SpaceCreator
+            isActive={isCreatingSpace}
+            onClickEvent={spaceClickEvent}
+            onSpaceComplete={handleSpaceComplete}
+            showGrid={showGrid}
+            spaceHeight={2.5}
+          />
+          
+          {/* Espacios creados */}
+          {createdSpaces.map((space, index) => (
+            <Space
+              key={index}
+              start={space.start}
+              end={space.end}
+              width={space.width}
+              length={space.length}
+              height={space.height}
+            />
+          ))}
+          
+          {/* Previsualización del cursor con snap */}
+          <CursorPreview 
+            showGrid={showGrid}
+            isActive={isDuplicating || isMoving || isRotating || isCreatingSpace}
+            isRotatingSecondClick={isRotatingSecondClick}
           />
           
           {/* Iluminación de la escena */}
@@ -426,6 +506,7 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
                      }
                    }}
                    interactionsDisabled={false}
+                   showGrid={showGrid}
                  />
 
         {/* Entorno: suelo, bordes, grid y sombras */}
@@ -463,6 +544,14 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
               return
             }
             
+            if (isCreatingSpace && point) {
+              console.log('📍 Click capturado para crear espacio:', point)
+              setSpaceClickEvent(new THREE.Vector3(point.x, point.y, point.z))
+              // Reset después de un frame para permitir múltiples clicks
+              setTimeout(() => setSpaceClickEvent(null), 50)
+              return
+            }
+            
             // Comportamiento normal: deseleccionar
             if (!isDragging.current && !isRotatingObject) {
               setSelectedObject(null)
@@ -472,7 +561,10 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
         />
 
         {/* Entorno HDRI para reflejos realistas */}
-        <Environment preset={environmentPreset} />
+        <Environment 
+          files={getEnvironmentFile(environmentPreset)}
+          preset={getEnvironmentPreset(environmentPreset)}
+        />
 
         {/* Controlador de cámara */}
         <CameraController cameraType={cameraType} />
@@ -490,6 +582,12 @@ export default function Scene3D({ showGrid = true, environmentPreset = 'warehous
           enableRotate={!isSelectionBoxActive && !isDuplicating && !isMoving && !isRotating}
           enablePan={!isSelectionBoxActive && !isDuplicating && !isMoving && !isRotating}
           enableZoom={true}
+          zoomToCursor={true}
+          mouseButtons={{
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN
+          }}
         />
 
 

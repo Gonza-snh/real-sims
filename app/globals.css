@@ -15,6 +15,14 @@
   --color-gris-claro: #F7F5EF;
   --color-gris-medio: #6B7280;
   
+  /* Colores de selección y handles */
+  --color-seleccion: #00FFFF;  /* Cyan para mejor contraste */
+  --color-seleccion-hover: #00E6E6;  /* Cyan más claro para hover */
+  --color-seleccion-linea: #00FFFF;  /* Cyan para líneas de wireframe */
+  
+  /* Grosor de líneas de selección */
+  --grosor-seleccion: 2;  /* Grosor de líneas de wireframe y handles */
+  
   /* Tipografías y tamaños */
   --font-titulo: 'Microsoft Sans Serif', sans-serif;
   --font-titulo-size: 35px;

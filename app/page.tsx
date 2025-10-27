@@ -22,6 +22,7 @@ export default function Home() {
   const [isDuplicating, setIsDuplicating] = useState<boolean>(false)
   const [isMoving, setIsMoving] = useState<boolean>(false)
   const [isRotatingTool, setIsRotatingTool] = useState<boolean>(false)
+  const [isCreatingSpace, setIsCreatingSpace] = useState<boolean>(false)
   const [cameraControl, setCameraControl] = useState<((view: 'top' | 'front' | 'right' | 'left' | 'back' | 'bottom') => void) | null>(null)
 
   // Deseleccionar objeto con tecla Escape (escalonado)
@@ -71,6 +72,16 @@ export default function Home() {
   // Detectar Command/Ctrl para activar Marco de selección, Espacio para Seleccionar y teclas numéricas para cámara
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Función para detectar si hay un input activo
+      const isInputActive = () => {
+        const activeElement = document.activeElement
+        return activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          (activeElement as HTMLElement).contentEditable === 'true'
+        )
+      }
+      
       // Detectar Espacio para activar Seleccionar
       if (event.code === 'Space' && activeTool !== 'seleccionar') {
         event.preventDefault()
@@ -79,7 +90,8 @@ export default function Home() {
       }
       
       // Detectar tecla "1" para vista TOP y cámara ortográfica
-      if (event.key === '1') {
+      // Solo activar si NO hay un input activo Y no hay herramientas activas
+      if (event.key === '1' && !isInputActive() && !isDuplicating && !isMoving && !isRotatingTool) {
         event.preventDefault()
         console.log('🎯 Tecla "1" presionada, cameraControl:', cameraControl)
         // Cambiar a cámara ortográfica
@@ -104,7 +116,7 @@ export default function Home() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [activeTool, cameraControl])
+  }, [activeTool, cameraControl, isDuplicating, isMoving, isRotatingTool])
 
   const handleToolChange = (tool: string) => {
     // Botones Toggle - no usan activeTool, tienen su propio estado
@@ -140,6 +152,21 @@ export default function Home() {
     if (tool === 'iluminacion') {
       if (activeTool !== 'iluminacion') {
         setActiveTool('iluminacion')
+      }
+      return
+    }
+    
+    // Crear espacio - toggle del estado isCreatingSpace
+    if (tool === 'crear-espacio') {
+      setIsCreatingSpace(prev => !prev)
+      // Si se activa crear espacio, desactivar otras herramientas
+      if (!isCreatingSpace) {
+        setIsDuplicating(false)
+        setIsMoving(false)
+        setIsRotatingTool(false)
+        setActiveTool('crear-espacio')
+      } else {
+        setActiveTool('seleccionar')
       }
       return
     }
@@ -250,6 +277,13 @@ export default function Home() {
           onMoveComplete={handleMoveComplete}
           isRotating={isRotatingTool}
           onRotationComplete={handleRotationComplete}
+          isCreatingSpace={isCreatingSpace}
+          onSpaceComplete={(space) => {
+            console.log('🏠 Espacio creado:', space)
+            // Desactivar la herramienta después de crear el espacio
+            setIsCreatingSpace(false)
+            setActiveTool('seleccionar')
+          }}
           onCameraControl={(fn) => setCameraControl(() => fn)}
         />
       <HerramientasEditor3D
